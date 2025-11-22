@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>飞机大战</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: #000; touch-action: manipulation; }
+        #gameContainer { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        #gameCanvas { border: 1px solid #fff; }
+        .screen { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.9); color: #fff; display: flex; flex-direction: column; 
+            justify-content: center; align-items: center; font-family: "SimSun", sans-serif; z-index: 10;
+        }
+        button { 
+            background: #ff4500; color: #fff; border: none; padding: 12px 24px; 
+            margin: 15px; font-size: 18px; border-radius: 5px; cursor: pointer; 
+        }
+        button:hover { background: #ff6347; }
+        .score-display, .lives-display, .highscore-display { 
+            position: absolute; top: 20px; color: #fff; font-size: 24px; 
+            font-family: "SimSun", sans-serif; z-index: 5;
+        }
+        .score-display { left: 20px; }
+        .highscore-display { left: 50%; transform: translateX(-50%); }
+        .lives-display { right: 20px; }
+        .mobile-controls { 
+            display: none; position: absolute; bottom: 100px; width: 100%; 
+            z-index: 5; justify-content: space-between; padding: 0 20px; box-sizing: border-box;
+        }
+        .control-btn { 
+            width: 80px; height: 80px; border-radius: 50%; 
+            background: rgba(255,255,255,0.3); display: flex; justify-content: center; align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            box-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+        .fire-btn { 
+            background: rgba(255,69,0,0.5); 
+            font-size: 20px;
+            box-shadow: 0 0 10px rgba(255,69,0,0.8);
+        }
+        .music-control {
+            position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
+            color: #fff; z-index: 5;
+        }
+        .music-btn {
+            background: transparent; border: none; color: #fff; font-size: 24px;
+            padding: 0; margin: 0; cursor: pointer;
+        }
+        
+        /* 历史记录界面样式 */
+        #historyScreen {
+            display: none;
+        }
+        .history-container {
+            width: 80%;
+            max-width: 500px;
+            height: 60%;
+            overflow-y: auto;
+            border: 1px solid #583267;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .history-item {
+            padding: 10px;
+            border-bottom: 1px solid #444;
+        }
+        .history-date {
+            color: #aaa;
+            font-size: 14px;
+        }
+        .history-score {
+            color: #ffcc00;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .close-btn {
+            position: absolute; top: 20px; right: 20px;
+            background: transparent; font-size: 24px;
+        }
+        
+        /* 设备选择按钮 */
+        .device-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .device-btn {
+            padding: 15px 30px;
+            font-size: 20px;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+        .device-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(255,69,0,0.5);
+        }
+        .mobile-btn {
+            background: linear-gradient(45deg, #1e90ff, #00bfff);
+        }
+        .pc-btn {
+            background: linear-gradient(45deg, #ff6347, #ff4500);
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="480" height="800"></canvas>
+        <div class="score-display">得分: <span id="score">0</span></div>
+        <div class="highscore-display">最高分: <span id="highscore">0</span></div>
+        <div class="lives-display">生命: <span id="lives">3</span></div>
+        <div class="music-control">
+            <button class="music-btn" id="musicToggle">
+                <i class="fa fa-volume-up"></i>
+            </button>
+        </div>
+        
+        <!-- 加载界面 -->
+        <div id="loadScreen" class="screen">
+            <h1>飞机大战</h1>
+            <p id="loadStatus">正在加载资源... 0%</p>
+        </div>
+        
+        <!-- 设备选择界面 -->
+        <div id="deviceScreen" class="screen" style="display: none;">
+            <h1>选择设备</h1>
+            <p>请选择您的游戏设备</p>
+            <div class="device-buttons">
+                <button id="mobileButton" class="device-btn mobile-btn">手机端</button>
+                <button id="pcButton" class="device-btn pc-btn">电脑端</button>
+            </div>
+        </div>
+        
+        <!-- 开始界面 -->
+        <div id="startScreen" class="screen" style="display: none;">
+            <h1>飞机大战</h1>
+            <p>消灭敌机，获得高分！</p>
+            <button id="startButton">开始游戏</button>
+            <button id="historyButton">查看历史记录</button>
+        </div>
+        
+        <!-- 游戏结束界面 -->
+        <div id="gameOverScreen" class="screen" style="display: none;">
+            <h1>游戏结束</h1>
+            <p>最终得分: <span id="finalScore">0</span></p>
+            <p>最高分: <span id="gameOverHighscore">0</span></p>
+            <button id="restartButton">再来一局</button>
+            <button id="backToStartButton">返回首页</button>
+            <button id="gameOverHistoryButton">查看历史记录</button>
+        </div>
+        
+        <!-- 历史记录界面 -->
+        <div id="historyScreen" class="screen">
+            <h1>历史记录</h1>
+            <div class="history-container" id="historyList">
+                <!-- 历史记录将在这里显示 -->
+            </div>
+            <button id="closeHistoryButton">关闭</button>
+            <button class="close-btn" id="mobileCloseHistoryButton">×</button>
+        </div>
+        
+        <!-- 手机控制按钮 -->
+        <div class="mobile-controls">
+            <div class="control-btn" id="leftBtn">←</div>
+            <div class="control-btn" id="rightBtn">→</div>
+            <div class="control-btn fire-btn" id="fireBtn">开火</div>
+        </div>
+    </div>
+
+    <script>
+        // 资源配置
+        const RESOURCES = {
+            images: [
+                { key: 'player', path: 'image/play.png' },    // 飞机图片
+                { key: 'enemy', path: 'image/enemy.png' },     // 敌机图片
+                { key: 'bullet', path: 'image/bullet.png' }    // 子弹图片
+            ],
+            sounds: [
+                { key: 'background', path: 'music/古今大战 by 完整版.mp3' } // 背景音乐
+            ]
+        };
+
+        // 游戏配置
+        const GAME_CONFIG = {
+            width: 480, height: 800,
+            playerSpeed: 8, bulletSpeed: 10, enemySpeed: 3,
+            enemySpawnRate: 1000, bulletCooldown: 300
+        };
+
+        // 全局变量
+        let canvas, ctx;
+        let loadedResources = { images: {}, sounds: {} };
+        let loadCount = 0;
+        let totalResources = RESOURCES.images.length + RESOURCES.sounds.length;
+        let isGameRunning = false;
+        let gameLoop;
+        let backgroundMusic = null;
+        let isMusicPlaying = true;
+        let scores = []; // 存储分数历史记录
+        let highScore = 0; // 最高分
+        let deviceType = null; // 'mobile' 或 'pc'
+
+        // 游戏对象
+        const player = { x: 0, y: 0, width: 60, height: 80, moveLeft: false, moveRight: false, firing: false };
+        let bullets = [], enemies = [], explosions = [];
+        let score = 0, lives = 3;
+        let lastEnemySpawn = 0, lastBulletFired = 0;
+
+        // DOM元素
+        const dom = {
+            canvas: document.getElementById('gameCanvas'),
+            score: document.getElementById('score'),
+            lives: document.getElementById('lives'),
+            highscore: document.getElementById('highscore'),
+            finalScore: document.getElementById('finalScore'),
+            gameOverHighscore: document.getElementById('gameOverHighscore'),
+            loadScreen: document.getElementById('loadScreen'),
+            loadStatus: document.getElementById('loadStatus'),
+            deviceScreen: document.getElementById('deviceScreen'),
+            startScreen: document.getElementById('startScreen'),
+            gameOverScreen: document.getElementById('gameOverScreen'),
+            historyScreen: document.getElementById('historyScreen'),
+            historyList: document.getElementById('historyList'),
+            deviceButtons: {
+                mobile: document.getElementById('mobileButton'),
+                pc: document.getElementById('pcButton')
+            },
+            startButton: document.getElementById('startButton'),
+            restartButton: document.getElementById('restartButton'),
+            backToStartButton: document.getElementById('backToStartButton'),
+            historyButton: document.getElementById('historyButton'),
+            gameOverHistoryButton: document.getElementById('gameOverHistoryButton'),
+            closeHistoryButton: document.getElementById('closeHistoryButton'),
+            mobileCloseHistoryButton: document.getElementById('mobileCloseHistoryButton'),
+            leftBtn: document.getElementById('leftBtn'),
+            rightBtn: document.getElementById('rightBtn'),
+            fireBtn: document.getElementById('fireBtn'),
+            musicToggle: document.getElementById('musicToggle')
+        };
+
+        // 初始化
+        function init() {
+            canvas = dom.canvas;
+            ctx = canvas.getContext('2d');
+            loadScoresFromFile(); // 加载历史分数
+            loadAllResources(); 
+            bindEvents();       
+        }
+
+        // 加载历史分数（模拟读取scores.txt）
+        function loadScoresFromFile() {
+            // 注意：浏览器环境下无法直接读取本地文件系统的txt
+            // 这里使用localStorage模拟，实际部署时需要后端支持
+            const savedScores = localStorage.getItem('planeWarScores');
+            if (savedScores) {
+                scores = JSON.parse(savedScores);
+                // 计算最高分
+                highScore = scores.reduce((max, item) => Math.max(max, item.score), 0);
+                dom.highscore.textContent = highScore;
+            } else {
+                scores = [];
+                highScore = 0;
+            }
+            updateHistoryDisplay();
+        }
+
+        // 保存分数到历史记录（模拟写入scores.txt）
+        function saveScoreToFile(score) {
+            const newScore = {
+                score: score,
+                date: new Date().toLocaleString() // 包含日期和时间
+            };
+            
+            scores.unshift(newScore); // 添加到开头
+            // 只保留最近20条记录
+            if (scores.length > 20) {
+                scores.pop();
+            }
+            
+            // 更新最高分
+            if (score > highScore) {
+                highScore = score;
+                dom.highscore.textContent = highScore;
+            }
+            
+            // 保存到localStorage
+            localStorage.setItem('planeWarScores', JSON.stringify(scores));
+            updateHistoryDisplay();
+        }
+
+        // 更新历史记录显示
+        function updateHistoryDisplay() {
+            dom.historyList.innerHTML = '';
+            
+            if (scores.length === 0) {
+                const emptyItem = document.createElement('div');
+                emptyItem.className = 'history-item';
+                emptyItem.textContent = '暂无游戏记录';
+                dom.historyList.appendChild(emptyItem);
+                return;
+            }
+            
+            // 显示所有记录
+            scores.forEach((item, index) => {
+                const historyItem = document.createElement('div');
+                historyItem.className = 'history-item';
+                
+                const rank = document.createElement('span');
+                rank.className = 'history-rank';
+                rank.textContent = `${index + 1}. `;
+                
+                const scoreSpan = document.createElement('span');
+                scoreSpan.className = 'history-score';
+                scoreSpan.textContent = `得分: ${item.score}`;
+                
+                const dateSpan = document.createElement('div');
+                dateSpan.className = 'history-date';
+                dateSpan.textContent = `日期: ${item.date}`;
+                
+                historyItem.appendChild(rank);
+                historyItem.appendChild(scoreSpan);
+                historyItem.appendChild(dateSpan);
+                dom.historyList.appendChild(historyItem);
+            });
+        }
+
+        // 显示历史记录界面
+        function showHistoryScreen() {
+            dom.startScreen.style.display = 'none';
+            dom.gameOverScreen.style.display = 'none';
+            dom.historyScreen.style.display = 'flex';
+        }
+
+        // 隐藏历史记录界面
+        function hideHistoryScreen() {
+            dom.historyScreen.style.display = 'none';
+            if (isGameRunning) {
+                // 游戏中不做处理
+            } else {
+                // 回到开始界面
+                dom.startScreen.style.display = 'flex';
+            }
+        }
+
+        // 加载所有资源
+        function loadAllResources() {
+            // 加载图片
+            RESOURCES.images.forEach(item => {
+                const img = new Image();
+                img.src = item.path;
+                img.onload = () => {
+                    loadedResources.images[item.key] = img;
+                    updateLoadProgress();
+                };
+                img.onerror = () => {
+                    alert(`图片加载失败：${item.path}\n请检查文件是否存在，名称是否正确！`);
+                    updateLoadProgress(); // 即使失败也继续加载流程
+                };
+            });
+
+            // 加载背景音乐
+            RESOURCES.sounds.forEach(item => {
+                const audio = new Audio();
+                audio.src = item.path;
+                audio.preload = 'auto';
+                audio.loop = true;
+                audio.volume = 0.5;
+                audio.oncanplaythrough = () => {
+                    loadedResources.sounds[item.key] = audio;
+                    backgroundMusic = audio;
+                    updateLoadProgress();
+                };
+                audio.onerror = () => {
+                    alert(`音乐加载失败：${item.path}\n请检查文件是否存在！`);
+                    updateLoadProgress(); // 即使失败也继续加载流程
+                };
+            });
+        }
+
+        // 更新加载进度
+        function updateLoadProgress() {
+            loadCount++;
+            const progress = Math.floor((loadCount / totalResources) * 100);
+            dom.loadStatus.textContent = `正在加载资源... ${progress}%`;
+            
+            // 所有资源加载完成后显示设备选择界面
+            if (loadCount === totalResources) {
+                dom.loadScreen.style.display = 'none';
+                dom.deviceScreen.style.display = 'flex';
+                // 调整玩家初始位置，确保完全可见（上移了100像素）
+                player.x = GAME_CONFIG.width / 2 - player.width / 2;
+                player.y = GAME_CONFIG.height - player.height - 120; // 上移了100像素
+                dom.highscore.textContent = highScore;
+            }
+        }
+        
+        // 选择设备
+        function selectDevice(type) {
+            deviceType = type;
+            dom.deviceScreen.style.display = 'none';
+            dom.startScreen.style.display = 'flex';
+            
+            // 根据设备类型显示或隐藏移动控制按钮
+            const mobileControls = document.querySelector('.mobile-controls');
+            if (type === 'mobile') {
+                mobileControls.style.display = 'flex';
+            } else {
+                mobileControls.style.display = 'none';
+            }
+        }
+
+        // 切换背景音乐
+        function toggleMusic() {
+            if (!backgroundMusic) return;
+            
+            if (isMusicPlaying) {
+                backgroundMusic.pause();
+                dom.musicToggle.innerHTML = '<i class="fa fa-volume-off"></i>';
+            } else {
+                backgroundMusic.play().catch(e => {
+                    console.log('音乐播放需要用户交互');
+                });
+                dom.musicToggle.innerHTML = '<i class="fa fa-volume-up"></i>';
+            }
+            isMusicPlaying = !isMusicPlaying;
+        }
+
+        // 绑定事件
+        function bindEvents() {
+            // 设备选择事件
+            dom.deviceButtons.mobile.addEventListener('click', () => selectDevice('mobile'));
+            dom.deviceButtons.pc.addEventListener('click', () => selectDevice('pc'));
+            
+            // 键盘控制
+            document.addEventListener('keydown', e => {
+                if (!isGameRunning) return;
+                switch(e.key) {
+                    case 'ArrowLeft': player.moveLeft = true; break;
+                    case 'ArrowRight': player.moveRight = true; break;
+                    case ' ': player.firing = true; break;
+                }
+            });
+            document.addEventListener('keyup', e => {
+                switch(e.key) {
+                    case 'ArrowLeft': player.moveLeft = false; break;
+                    case 'ArrowRight': player.moveRight = false; break;
+                    case ' ': player.firing = false; break;
+                }
+            });
+
+            // 触摸控制
+            dom.leftBtn.addEventListener('touchstart', () => player.moveLeft = true);
+            dom.leftBtn.addEventListener('touchend', () => player.moveLeft = false);
+            dom.rightBtn.addEventListener('touchstart', () => player.moveRight = true);
+            dom.rightBtn.addEventListener('touchend', () => player.moveRight = false);
+            dom.fireBtn.addEventListener('touchstart', () => player.firing = true);
+            dom.fireBtn.addEventListener('touchend', () => player.firing = false);
+            
+            // 为移动端按钮添加鼠标点击支持（方便测试）
+            dom.leftBtn.addEventListener('mousedown', () => player.moveLeft = true);
+            dom.leftBtn.addEventListener('mouseup', () => player.moveLeft = false);
+            dom.leftBtn.addEventListener('mouseleave', () => player.moveLeft = false);
+            dom.rightBtn.addEventListener('mousedown', () => player.moveRight = true);
+            dom.rightBtn.addEventListener('mouseup', () => player.moveRight = false);
+            dom.rightBtn.addEventListener('mouseleave', () => player.moveRight = false);
+            dom.fireBtn.addEventListener('mousedown', () => player.firing = true);
+            dom.fireBtn.addEventListener('mouseup', () => player.firing = false);
+            dom.fireBtn.addEventListener('mouseleave', () => player.firing = false);
+
+            // 按钮事件
+            dom.startButton.addEventListener('click', startGame);
+            dom.restartButton.addEventListener('click', startGame);
+            dom.backToStartButton.addEventListener('click', () => {
+                dom.gameOverScreen.style.display = 'none';
+                dom.deviceScreen.style.display = 'flex';
+            });
+            
+            // 历史记录相关事件
+            dom.historyButton.addEventListener('click', showHistoryScreen);
+            dom.gameOverHistoryButton.addEventListener('click', showHistoryScreen);
+            dom.closeHistoryButton.addEventListener('click', hideHistoryScreen);
+            dom.mobileCloseHistoryButton.addEventListener('click', hideHistoryScreen);
+            
+            dom.musicToggle.addEventListener('click', toggleMusic);
+        }
+
+        // 开始游戏
+        function startGame() {
+            // 重置游戏状态
+            score = 0; lives = 3;
+            bullets = []; enemies = []; explosions = [];
+            lastEnemySpawn = 0; lastBulletFired = 0;
+            
+            // 更新显示
+            dom.score.textContent = score;
+            dom.lives.textContent = lives;
+            dom.startScreen.style.display = 'none';
+            dom.gameOverScreen.style.display = 'none';
+            dom.historyScreen.style.display = 'none';
+            
+            // 播放背景音乐
+            if (backgroundMusic && !isMusicPlaying) {
+                backgroundMusic.play().catch(e => {
+                    console.log('首次播放需要用户点击游戏区域');
+                });
+                isMusicPlaying = true;
+                dom.musicToggle.innerHTML = '<i class="fa fa-volume-up"></i>';
+            }
+            
+            // 开始游戏循环
+            isGameRunning = true;
+            gameLoop = requestAnimationFrame(updateGame);
+        }
+
+        // 发射子弹
+        function fireBullet(timestamp) {
+            if (timestamp - lastBulletFired < GAME_CONFIG.bulletCooldown) return;
+            
+            lastBulletFired = timestamp;
+            const bullet = {
+                x: player.x + player.width / 2 - 3,
+                y: player.y,
+                width: 6,
+                height: 16,
+                speed: GAME_CONFIG.bulletSpeed
+            };
+            bullets.push(bullet);
+        }
+
+        // 生成敌人
+        function spawnEnemy(timestamp) {
+            if (timestamp - lastEnemySpawn < GAME_CONFIG.enemySpawnRate) return;
+            
+            lastEnemySpawn = timestamp;
+            const x = Math.random() * (GAME_CONFIG.width - 50);
+            enemies.push({
+                x: x,
+                y: -50,
+                width: 50,
+                height: 50,
+                speed: GAME_CONFIG.enemySpeed + Math.random() * 2
+            });
+        }
+
+        // 碰撞检测
+        function checkCollision(a, b) {
+            return a.x < b.x + b.width &&
+                   a.x + a.width > b.x &&
+                   a.y < b.y + b.height &&
+                   a.y + a.height > b.y;
+        }
+
+        // 创建爆炸效果
+        function createExplosion(x, y) {
+            explosions.push({
+                x: x,
+                y: y,
+                radius: 5,
+                maxRadius: 30,
+                alpha: 1,
+                speed: 1.5
+            });
+        }
+
+        // 绘制爆炸效果
+        function drawExplosion(explosion) {
+            ctx.save();
+            ctx.globalAlpha = explosion.alpha;
+            
+            // 绘制爆炸外圈
+            ctx.beginPath();
+            ctx.arc(explosion.x + 25, explosion.y + 25, explosion.radius, 0, Math.PI * 2);
+            ctx.fillStyle = '#ff6b35';
+            ctx.fill();
+            
+            // 绘制爆炸内圈
+            ctx.beginPath();
+            ctx.arc(explosion.x + 25, explosion.y + 25, explosion.radius * 0.6, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffcc00';
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+        // 游戏主循环
+        function updateGame(timestamp) {
+            if (!isGameRunning) return;
+            
+            // 清空画布
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, GAME_CONFIG.width, GAME_CONFIG.height);
+            
+            // 玩家移动
+            if (player.moveLeft && player.x > 0) {
+                player.x -= GAME_CONFIG.playerSpeed;
+            }
+            if (player.moveRight && player.x < GAME_CONFIG.width - player.width) {
+                player.x += GAME_CONFIG.playerSpeed;
+            }
+            
+            // 玩家射击
+            if (player.firing) {
+                fireBullet(timestamp);
+            }
+            
+            // 生成敌人
+            spawnEnemy(timestamp);
+            
+            // 更新并绘制子弹
+            bullets = bullets.filter(bullet => {
+                bullet.y -= bullet.speed;
+                // 绘制子弹
+                if (loadedResources.images.bullet) {
+                    ctx.drawImage(loadedResources.images.bullet, bullet.x, bullet.y, bullet.width, bullet.height);
+                } else {
+                    ctx.fillStyle = '#ff0';
+                    ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+                }
+                return bullet.y + bullet.height > 0;
+            });
+            
+            // 更新并绘制敌人
+            enemies = enemies.filter(enemy => {
+                enemy.y += enemy.speed;
+                // 绘制敌人
+                if (loadedResources.images.enemy) {
+                    ctx.drawImage(loadedResources.images.enemy, enemy.x, enemy.y, enemy.width, enemy.height);
+                } else {
+                    ctx.fillStyle = '#f00';
+                    ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+                }
+                // 敌人超出屏幕
+                if (enemy.y > GAME_CONFIG.height) {
+                    lives--;
+                    dom.lives.textContent = lives;
+                    if (lives <= 0) {
+                        gameOver();
+                    }
+                    return false;
+                }
+                return true;
+            });
+            
+            // 检测子弹与敌人碰撞
+            bullets = bullets.filter(bullet => {
+                let hit = false;
+                enemies = enemies.filter(enemy => {
+                    if (checkCollision(bullet, enemy)) {
+                        hit = true;
+                        score += 10;
+                        dom.score.textContent = score;
+                        createExplosion(enemy.x, enemy.y);
+                        return false;
+                    }
+                    return true;
+                });
+                return !hit;
+            });
+            
+            // 检测玩家与敌人碰撞
+            enemies = enemies.filter(enemy => {
+                if (checkCollision(player, enemy)) {
+                    createExplosion(enemy.x, enemy.y);
+                    lives--;
+                    dom.lives.textContent = lives;
+                    if (lives <= 0) {
+                        gameOver();
+                    }
+                    return false;
+                }
+                return true;
+            });
+            
+            // 更新并绘制爆炸效果
+            explosions = explosions.filter(explosion => {
+                explosion.radius += explosion.speed;
+                explosion.alpha -= 0.05;
+                
+                drawExplosion(explosion);
+                
+                return explosion.radius < explosion.maxRadius && explosion.alpha > 0;
+            });
+            
+            // 绘制玩家
+            if (loadedResources.images.player) {
+                ctx.drawImage(loadedResources.images.player, player.x, player.y, player.width, player.height);
+            } else {
+                ctx.fillStyle = '#0f0';
+                ctx.fillRect(player.x, player.y, player.width, player.height);
+            }
+            
+            // 继续游戏循环
+            gameLoop = requestAnimationFrame(updateGame);
+        }
+
+        // 游戏结束
+        function gameOver() {
+            isGameRunning = false;
+            cancelAnimationFrame(gameLoop);
+            // 保存本次得分
+            saveScoreToFile(score);
+            // 更新游戏结束界面
+            dom.finalScore.textContent = score;
+            dom.gameOverHighscore.textContent = highScore;
+            dom.gameOverScreen.style.display = 'flex';
+        }
+
+        // 页面加载完成后初始化
+        window.addEventListener('load', init);
+    </script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+</body>
+</html>
